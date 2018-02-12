@@ -27,9 +27,7 @@ def loaders(dataset,params):
 	datasets = {'train':dataset[:train_idx],
 				'val':dataset[train_idx:]
 				}
-
-	print(datasets)	
-
+				
 	# Create the DataLoaders
 	dataloaders = {x: data.DataLoader(datasets[x],batch_size=params['batch']*params['seq'],
 	                                  drop_last=True,num_workers=4)

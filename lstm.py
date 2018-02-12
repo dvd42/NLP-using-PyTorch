@@ -19,6 +19,8 @@ class LSTM(nn.Module):
         self.seq = params['seq']
         alphabet_size = output_size = params['alphabet_size']
 
+        #self.n_params = alphabet_size*self.hidden_dim + self.hidden_dim*self.hidden_dim*self.n_layers + self.hidden_dim*output_size
+
         
         self.i2h = nn.Linear(alphabet_size,self.hidden_dim)
         self.lstm = nn.LSTM(self.hidden_dim,self.hidden_dim,self.n_layers,
@@ -57,16 +59,16 @@ class LSTM(nn.Module):
                         
             if t != None:
                 
-                soft_out = F.softmax(out/t,dim=1)        
-                p = soft_out.data.cpu().numpy()[i]
+                soft_out = F.softmax(out/t,dim=1)
+                p = soft_out.data.cpu().numpy()
             
-                for i in range(soft_out.size()[0]):
+                for j in range(soft_out.size()[0]):
                     
                     #print('Torch: {}'.format(torch.sum(soft_out.data[i])))
                     #print('Numpy: {}'.format(np.sum(soft_out.data.cpu().numpy()[i])))
                     
-                    idxs[i] = np.random.choice(out.size()[1],p=p)
-                    string += ix_to_char[idxs[i].data[0]] 
+                    idxs[j] = np.random.choice(out.size()[1],p=p[j])
+                    string += ix_to_char[idxs[j].data[0]] 
                                   
             else:
                 for c in idxs.data:
@@ -90,7 +92,7 @@ def train(dataloaders,char_map,model,optimizer,criterion,params):
     
     since = time.time()
 
-    best_acc = 0
+    best_loss = float('inf')
     epoch = 1
     bad_epochs = 0
     
@@ -149,9 +151,9 @@ def train(dataloaders,char_map,model,optimizer,criterion,params):
             if phase == 'val': 
 
                 # Save best weights
-                if epoch_acc > best_acc:
+                if epoch_loss < best_loss:
                     bad_epochs = 0
-                    best_acc = epoch_acc
+                    best_loss = epoch_loss
                     #best_wts = model.state_dict()
                     torch.save(model.state_dict(),'rnn.pkl')
                     
@@ -173,7 +175,7 @@ def train(dataloaders,char_map,model,optimizer,criterion,params):
     print('\nTraining completed in {:.0f}m {:.0f}s'.format(
         time_elapsed//60, time_elapsed % 60))
 
-    print('Best Accuracy: {:.4f}'.format(best_acc))
+    print('Best Loss: {:.4f}'.format(best_loss))
 
         
     model.load_state_dict(torch.load('rnn.pkl'))

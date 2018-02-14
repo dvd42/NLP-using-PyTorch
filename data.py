@@ -23,7 +23,6 @@ def loaders(dataset,params):
 
 	# 80% for training and the rest for validation
 	train_idx = int(len(dataset)*.8)+1
-
 	datasets = {'train':dataset[:train_idx],
 				'val':dataset[train_idx:]
 				}

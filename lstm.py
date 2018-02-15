@@ -12,7 +12,7 @@ class LSTM(nn.Module):
     """LSTM neural network
 
     Args:
-         params (Dicts): holds the program hyperparameters
+         params (Dict): holds the program hyperparameters
     """
 
     def __init__(self, params):
@@ -38,7 +38,7 @@ class LSTM(nn.Module):
             type: the tensor type e.g:torch.FloatTensor, torch.cuda.FloatTensor
 
         Returns:
-            (Variable,Variable): Tensors of size (L,B,H) where:
+            h_0,c_0 (Variable,Variable): Tensors of size (L,B,H) where:
             L: number of LSTM layers
             B: batch size
             H: hidden dimension of the lstm
@@ -55,14 +55,14 @@ class LSTM(nn.Module):
         """Computes the neural net forward pass
 
         Args:
-            sequence (Variable): one-hot Tensor of size (B,SL,AS) where:
+            sequence (Variable): one-hot Tensor of size (B,SL-1,AS) where:
             B: batch size
             SL: sequence lenght
             AS: alphabet size
 
 
         Returns:
-            out (Variable): one-hot Tensor of size (B*SL,AS)
+            out (Variable): one-hot Tensor of size (B*(SL-1),AS)
 
         """
 
@@ -76,15 +76,15 @@ class LSTM(nn.Module):
         """Reproduces text using the LSTM
 
         Args:
-            out (Variable): one-hot Tensor of size (B,SL,AS) where:
+            out (Variable): one-hot Tensor of size (B,SL-1,AS) where:
             B: batch size
             SL: sequence lenght
             AS: alphabet size
 
             ix_to_char (Dict): mapping from integers (indexes) to chars
 
-            iters (int): number of text sequences to be generated. Default: 2
-            t (float): softmax temperature value (applied if not None). Default: None
+            iters (int,optional): number of tequences to be generated. Default: 2
+            t (float,optional): softmax temperature value. Default: None
 
         Returns:
             (String): generated text
@@ -151,13 +151,16 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
         dataloaders (Dict): holds PyTorch Dataloaders for training and validation
         char_to_ix: (Dict): mapping from chars to integers (indexes)
         model (LSTM): the model to be trained
-        optimizer (Optimizer): PyTorch optimizer to use
-        criterion: Loss function to use
+        optimizer (Optimizer): PyTorch optimizer
+        criterion: Loss function
         params (Dicts): holds the program hyperparameters
 
         Returns:
             model (LSTM): the trained model
     """
+
+    assert len(dataloaders['train']) != 0, 'Not enough data for training'
+    assert len(dataloaders['val']) != 0, 'Not enough data for validation'
 
     since = time.time()
 
@@ -165,8 +168,8 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
     epoch = 1
     bad_epochs = 0
 
-    # dataset_size = {x: len(dataloaders[x]) * dataloaders[x].batch_size
-    # for x in ['train', 'val']}
+    dataset_size = {x: len(dataloaders[x]) * dataloaders[x].batch_size
+                    for x in ['train', 'val']}
 
     while True:
         print('Epoch {}'.format(epoch))
@@ -208,10 +211,10 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
 
             # Compute mean epoch loss and accuracy
             epoch_loss = running_loss / len(dataloaders[phase])
-            # epoch_acc = running_corrects / dataset_size[phase]
+            epoch_acc = running_corrects / dataset_size[phase]
 
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                phase, epoch_loss, running_corrects))
+                phase, epoch_loss, epoch_acc))
 
             if phase == 'val':
 

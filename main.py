@@ -24,7 +24,7 @@ def main():
     dataset = data.TxtLoader(path)
 
     # Network parameters
-    params = {'n_layers': 2, 'batch': 128, 'h_dim': 512,
+    params = {'n_layers': 1, 'batch': 128, 'h_dim': 512,
               'seq': 65, 'type': dtype,
               'alphabet_size': len(dataset.alphabet)}
 
@@ -32,7 +32,7 @@ def main():
 
     rnn = lstm.LSTM(params).type(params['type'])
 
-    optimizer = optim.Adam(rnn.parameters(), lr=0.095)
+    optimizer = optim.Adam(rnn.parameters(), lr=0.01)
     criterion = nn.CrossEntropyLoss()
 
     char_to_ix = dataset.char_to_ix  # map from char to index
@@ -49,7 +49,7 @@ def main():
 
     print(string)
 
-    print(string, file=open('texts/output.txt', 'w'))
+    print(string, file=open('data/output.txt', 'w'))
 
 
 # Deberia quitar la primera capa linear?
@@ -68,6 +68,7 @@ of 0.9. It took four training epochs to converge. The LSTM derivates were
 clipped in the range [−1, 1].
 
 A que se refiere con 7 capas de 700 LSTM cells? No seria eso 700 capas?
+En mi programa cual seria el equivalente de eso?
 
 """
 

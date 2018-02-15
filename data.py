@@ -23,7 +23,7 @@ class TxtLoader(data.Dataset):
 
 
 def loaders(dataset, params):
-    """Creates a PyTorch Dataloader for training and one for valdiation
+    """Creates a PyTorch Dataloader for training and one for validation
 
         Args:
             dataset (TxtLoader): dataset holding the data
@@ -34,7 +34,7 @@ def loaders(dataset, params):
     """
 
     # 80% for training and the rest for validation
-    train_idx = int(len(dataset) * .8) + 1
+    train_idx = int(len(dataset) * 0.8) + 1
     datasets = {'train': dataset[:train_idx],
                 'val': dataset[train_idx:]}
 
@@ -42,7 +42,6 @@ def loaders(dataset, params):
     dataloaders = {x: data.DataLoader(datasets[x],
                                       batch_size=params['batch'] * params['seq'],
                                       drop_last=True, num_workers=4)
-                   for x in ['train', 'val']
-                   }
+                   for x in ['train', 'val']}
 
     return dataloaders

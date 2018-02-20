@@ -24,11 +24,11 @@ def main():
     dataset = data.TxtLoader(path)
 
     # Network parameters
-    params = {'n_layers': 1, 'batch': 128, 'h_dim': 512,
-              'seq': 65, 'type': dtype,
+    params = {'n_layers': 1, 'batch': 2, 'h_dim': 512,
+              'seq': 64, 'type': dtype,
               'alphabet_size': len(dataset.alphabet)}
 
-    dataloaders = data.loaders(dataset, params)
+    dataloaders = data.loaders(dataset[:10000], params)
 
     rnn = lstm.LSTM(params).type(params['type'])
 
@@ -45,32 +45,12 @@ def main():
 
     ix_to_char = dataset.ix_to_char  # map from index to char
 
-    string = rnn.gen_text(inputs[:, :-1, :], ix_to_char, iters=2, t=0.2)
+    string = rnn.gen_text(inputs[:, :-1, :], ix_to_char, iters=2)
 
     print(string)
 
     print(string, file=open('data/output.txt', 'w'))
 
-
-# Deberia quitar la primera capa linear?
-# Deberia usar RELUs?
-# Que proporcion deberia usar de validacion y training?
-# He visto muchos ejemplos que usan RMSprop para estos casos, deberia usarlo?
-
-"""
-Esto es un fragmento de Graves et al.
-
-A much larger network was used for this data than the Penn data (reflecting
-the greater size and complexity of the training set) with seven hidden layers of
-700 LSTM cells, giving approximately 21.3M weights. The network was trained
-with stochastic gradient descent, using a learn rate of 0.0001 and a momentum
-of 0.9. It took four training epochs to converge. The LSTM derivates were
-clipped in the range [−1, 1].
-
-A que se refiere con 7 capas de 700 LSTM cells? No seria eso 700 capas?
-En mi programa cual seria el equivalente de eso?
-
-"""
 
 if __name__ == "__main__":
     main()

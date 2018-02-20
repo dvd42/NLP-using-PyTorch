@@ -8,11 +8,10 @@ import time
 
 
 class LSTM(nn.Module):
-
     """LSTM neural network
 
     Args:
-         params (Dict): holds the program hyperparameters
+         params (dict): holds the program hyperparameters
     """
 
     def __init__(self, params):
@@ -22,13 +21,13 @@ class LSTM(nn.Module):
         self.n_layers = params['n_layers']
         self.batch = params['batch']
         self.seq = params['seq']
-        alphabet_size = output_size = params['alphabet_size']
+        alphabet_size = self.output_size = params['alphabet_size']
 
         self.i2h = nn.Linear(alphabet_size, self.hidden_dim)
         self.lstm = nn.LSTM(self.hidden_dim, self.hidden_dim, self.n_layers,
                             batch_first=True, dropout=True)
 
-        self.h2O = nn.Linear(self.hidden_dim, output_size)
+        self.h2O = nn.Linear(self.hidden_dim, self.output_size)
         self.hidden = self.init_hidden(params['type'])
 
     def init_hidden(self, type):
@@ -55,39 +54,39 @@ class LSTM(nn.Module):
         """Computes the neural net forward pass
 
         Args:
-            sequence (Variable): one-hot Tensor of size (B,SL-1,AS) where:
+            sequence (Variable): one-hot Tensor of size (B,SL,AS) where:
             B: batch size
             SL: sequence lenght
             AS: alphabet size
 
 
         Returns:
-            out (Variable): one-hot Tensor of size (B*(SL-1),AS)
+            out (Variable): one-hot Tensor of size (B*SL,AS)
 
         """
 
         out = self.i2h(sequence)
-        lstm_out, self.hidden = self.lstm(
-            out.view(self.batch, self.seq - 1, -1), self.hidden)
-        out = self.h2O(out.contiguous().view(-1, self.hidden_dim))
-        return out
+        out = out.view(self.batch, self.seq, -1)
+        lstm_out, self.hidden = self.lstm(out, self.hidden)
+        out = self.h2O(lstm_out)
+        return out.view(-1, self.output_size)
 
-    def gen_text(self, out, ix_to_char, iters=2, t=None):
+    def gen_text(self, out, ix_to_char, iters=2, t=1):
         """Reproduces text using the LSTM
 
         Args:
-            out (Variable): one-hot Tensor of size (B,SL-1,AS) where:
+            out (Variable): one-hot Tensor of size (B,SL,AS) where:
             B: batch size
             SL: sequence lenght
             AS: alphabet size
 
-            ix_to_char (Dict): mapping from integers (indexes) to chars
+            ix_to_char (dict): mapping from integers (indexes) to chars
 
             iters (int,optional): number of tequences to be generated. Default: 2
-            t (float,optional): softmax temperature value. Default: None
+            t (float,optional): softmax temperature value. Default: 1
 
         Returns:
-            (String): generated text
+            (str): generated text
         """
 
         string = ''
@@ -98,22 +97,15 @@ class LSTM(nn.Module):
             out = self(out)
             _, idxs = out.max(1)
 
-            if t is not None:
+            # Apply temperature
+            soft_out = F.softmax(out / t, dim=1)
+            p = soft_out.data.cpu().numpy()
 
-                # Apply temperature
-                soft_out = F.softmax(out / t, dim=1)
-                p = soft_out.data.cpu().numpy()
+            # Select a new predicted char with probability p
+            for j in range(soft_out.size()[0]):
 
-                # Select a new predicted char with probability p
-                for j in range(soft_out.size()[0]):
-
-                    idxs[j] = np.random.choice(out.size()[1], p=p[j])
-                    string += ix_to_char[idxs[j].data[0]]
-
-            # Select the predicted chars
-            else:
-                for c in idxs.data:
-                    string += ix_to_char[c]
+                idxs[j] = np.random.choice(out.size()[1], p=p[j])
+                string += ix_to_char[idxs[j].data[0]]
 
         return string
 
@@ -122,18 +114,18 @@ def sequence_to_one_hot(sequence, char_to_ix, params):
     """Turns a sequence of chars into one-hot Tensor
 
     Args:
-        sequence (String): sequence of chars
-        char_to_ix (Dict): mapping from chars to integers (indexes)
-        params (Dicts): holds the program hyperparameters
+        sequence (str): sequence of chars
+        char_to_ix (dict): mapping from chars to integers (indexes)
+        params (dict): holds the program hyperparameters
 
     Returns:
-        (Tensor): one-hot tensor of size (B,SL,AS) where:
+        (Tensor): one-hot tensor of size (B,SL+1,AS) where:
         B: batch size
         SL: sequence lenght
         AS: alphabet size
     """
 
-    batch_size = params['batch'] * params['seq']
+    batch_size = params['batch'] * (params['seq'] + 1)
     assert len(sequence) == batch_size, 'Sequence must be a batch'
 
     tensor = torch.zeros(len(sequence), params['alphabet_size']).type(params['type'])
@@ -141,19 +133,19 @@ def sequence_to_one_hot(sequence, char_to_ix, params):
     for i, c in enumerate(sequence):
         tensor[i][char_to_ix[c]] = 1
 
-    return tensor.view(params['batch'], params['seq'], params['alphabet_size'])
+    return tensor.view(params['batch'], params['seq'] + 1, params['alphabet_size'])
 
 
 def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
     """Trains the neural net
 
     Args:
-        dataloaders (Dict): holds PyTorch Dataloaders for training and validation
-        char_to_ix: (Dict): mapping from chars to integers (indexes)
+        dataloaders (dict): holds PyTorch Dataloaders for training and validation
+        char_to_ix: (dict): mapping from chars to integers (indexes)
         model (LSTM): the model to be trained
         optimizer (Optimizer): PyTorch optimizer
         criterion: Loss function
-        params (Dicts): holds the program hyperparameters
+        params (dict): holds the program hyperparameters
 
         Returns:
             model (LSTM): the trained model
@@ -164,12 +156,14 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
 
     since = time.time()
 
-    best_loss = float('inf')
+    best_acc = 0
     epoch = 1
     bad_epochs = 0
 
     dataset_size = {x: len(dataloaders[x]) * dataloaders[x].batch_size
                     for x in ['train', 'val']}
+
+    print(dataset_size)
 
     while True:
         print('Epoch {}'.format(epoch))
@@ -198,16 +192,15 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
                 _, preds = out.max(1)
 
                 # Get the targets (indexes where the one-hot vector is 1)
-                _, target = inputs[:, 1:, :].topk(1)
-
-                loss = criterion(out, target.view(-1))
+                targets = inputs[:, 1:, :].topk(1)[1].view(-1)
+                loss = criterion(out, targets)
 
                 if phase == 'train':
                     loss.backward()
                     optimizer.step()
 
                 running_loss += loss.data[0]
-                running_corrects += torch.sum(preds == target).data[0]
+                running_corrects += torch.sum(preds == targets).data[0]
 
             # Compute mean epoch loss and accuracy
             epoch_loss = running_loss / len(dataloaders[phase])
@@ -219,16 +212,16 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
             if phase == 'val':
 
                 # Save best weights
-                if epoch_loss < best_loss:
+                if epoch_acc > best_acc:
                     bad_epochs = 0
-                    best_loss = epoch_loss
+                    best_acc = epoch_acc
                     torch.save(model.state_dict(), 'rnn.pkl')
 
                 else:
                     bad_epochs += 1
 
         # Hara-kiri
-        if bad_epochs == 10:
+        if bad_epochs == 20:
             break
 
         epoch += 1
@@ -238,7 +231,7 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
     print('\nTraining completed in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
 
-    print('Best Loss: {:.4f}\n\n'.format(best_loss))
+    print('Best Accuracy: {:.4f}\n\n'.format(best_acc))
 
     # Load best wts
     model.load_state_dict(torch.load('rnn.pkl'))

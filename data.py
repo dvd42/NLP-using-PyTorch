@@ -5,7 +5,7 @@ class TxtLoader(data.Dataset):
     """Takes a .txt file and turns its contents into a dataset
 
     Args:
-        path (string): The path to the .txt file holding the data
+        path (str): The path to the .txt file holding the data
     """
 
     def __init__(self, path):
@@ -27,20 +27,20 @@ def loaders(dataset, params):
 
         Args:
             dataset (TxtLoader): dataset holding the data
-            params (Dict): params (Dicts): holds the program hyperparameters
+            params (dict): holds the program hyperparameters
 
         Returns:
-            dataloaders (Dict): holds PyTorch Dataloaders for training and validation
+            dataloaders (dict): holds PyTorch Dataloaders for training and validation
     """
 
     # 80% for training and the rest for validation
-    train_idx = int(len(dataset) * 0.8) + 1
+    train_idx = int(len(dataset) * 0.8)
     datasets = {'train': dataset[:train_idx],
                 'val': dataset[train_idx:]}
 
     # Create the DataLoaders
     dataloaders = {x: data.DataLoader(datasets[x],
-                                      batch_size=params['batch'] * params['seq'],
+                                      batch_size=params['batch'] * (params['seq'] + 1),
                                       drop_last=True, num_workers=4)
                    for x in ['train', 'val']}
 

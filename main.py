@@ -19,33 +19,34 @@ def main():
         dtype = torch.FloatTensor
 
     # path to the data file
-    path = 'data/Lovecraft.txt'
+    path = 'data/LoveCraft.txt'
 
     dataset = data.TxtLoader(path)
 
     # Network parameters
-    params = {'n_layers': 1, 'batch': 2, 'h_dim': 512,
+    params = {'n_layers': 2, 'batch': 128, 'h_dim': 512,
               'seq': 64, 'type': dtype,
               'alphabet_size': len(dataset.alphabet)}
 
-    dataloaders = data.loaders(dataset[:10000], params)
+    dataloaders = data.loaders(dataset, params)
 
     rnn = lstm.LSTM(params).type(params['type'])
 
     optimizer = optim.Adam(rnn.parameters(), lr=0.01)
+
     criterion = nn.CrossEntropyLoss()
 
     char_to_ix = dataset.char_to_ix  # map from char to index
     rnn = lstm.train(dataloaders, char_to_ix, rnn, optimizer, criterion, params)
 
     # Get a batch from training set
-    batch = dataloaders['train'].dataset[:params['batch'] * params['seq']]
+    batch = iter(dataloaders['train']).__next__()
 
     inputs = Variable(lstm.sequence_to_one_hot(batch, dataset.char_to_ix, params))
 
     ix_to_char = dataset.ix_to_char  # map from index to char
 
-    string = rnn.gen_text(inputs[:, :-1, :], ix_to_char, iters=2)
+    string = rnn.gen_text(inputs[:, :-1, :], ix_to_char, iters=2, t=0.1)
 
     print(string)
 

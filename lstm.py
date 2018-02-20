@@ -23,8 +23,7 @@ class LSTM(nn.Module):
         self.seq = params['seq']
         alphabet_size = self.output_size = params['alphabet_size']
 
-        self.i2h = nn.Linear(alphabet_size, self.hidden_dim)
-        self.lstm = nn.LSTM(self.hidden_dim, self.hidden_dim, self.n_layers,
+        self.lstm = nn.LSTM(alphabet_size, self.hidden_dim, self.n_layers,
                             batch_first=True, dropout=True)
 
         self.h2O = nn.Linear(self.hidden_dim, self.output_size)
@@ -50,6 +49,14 @@ class LSTM(nn.Module):
 
         return h_0, c_0
 
+    def count_parameters(self):
+        """Counts the neural net parameters
+
+        Returns:
+            (int): the amount of parameters in the neural net
+        """
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
     def forward(self, sequence):
         """Computes the neural net forward pass
 
@@ -64,14 +71,12 @@ class LSTM(nn.Module):
             out (Variable): one-hot Tensor of size (B*SL,AS)
 
         """
-
-        out = self.i2h(sequence)
-        out = out.view(self.batch, self.seq, -1)
+        out = sequence.contiguous().view(self.batch, self.seq, -1)
         lstm_out, self.hidden = self.lstm(out, self.hidden)
         out = self.h2O(lstm_out)
         return out.view(-1, self.output_size)
 
-    def gen_text(self, out, ix_to_char, iters=2, t=1):
+    def gen_text(self, out, ix_to_char, iters=2, t=0.5):
         """Reproduces text using the LSTM
 
         Args:
@@ -83,7 +88,7 @@ class LSTM(nn.Module):
             ix_to_char (dict): mapping from integers (indexes) to chars
 
             iters (int,optional): number of tequences to be generated. Default: 2
-            t (float,optional): softmax temperature value. Default: 1
+            t (float,optional): softmax temperature value. Default: 0.5
 
         Returns:
             (str): generated text
@@ -156,7 +161,7 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
 
     since = time.time()
 
-    best_acc = 0
+    best_loss = float('inf')
     epoch = 1
     bad_epochs = 0
 
@@ -164,6 +169,7 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
                     for x in ['train', 'val']}
 
     print(dataset_size)
+    print("Parameters: {}".format(model.count_parameters()))
 
     while True:
         print('Epoch {}'.format(epoch))
@@ -212,8 +218,9 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
             if phase == 'val':
 
                 # Save best weights
-                if epoch_acc > best_acc:
+                if epoch_loss < best_loss:
                     bad_epochs = 0
+                    best_loss = epoch_loss
                     best_acc = epoch_acc
                     torch.save(model.state_dict(), 'rnn.pkl')
 
@@ -221,7 +228,7 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
                     bad_epochs += 1
 
         # Hara-kiri
-        if bad_epochs == 20:
+        if bad_epochs == 10:
             break
 
         epoch += 1

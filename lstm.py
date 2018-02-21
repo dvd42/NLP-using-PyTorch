@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.utils as util
 import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
@@ -24,7 +25,7 @@ class LSTM(nn.Module):
         alphabet_size = self.output_size = params['alphabet_size']
 
         self.lstm = nn.LSTM(alphabet_size, self.hidden_dim, self.n_layers,
-                            batch_first=True, dropout=True)
+                            batch_first=True, dropout=0.5)
 
         self.h2O = nn.Linear(self.hidden_dim, self.output_size)
         self.hidden = self.init_hidden(params['type'])
@@ -141,6 +142,15 @@ def sequence_to_one_hot(sequence, char_to_ix, params):
     return tensor.view(params['batch'], params['seq'] + 1, params['alphabet_size'])
 
 
+def repackage_hidden(h):
+    """Wraps hidden states in new Variables, to detach them from their history."""
+
+    if type(h) == Variable:
+        return Variable(h.data)
+    else:
+        return tuple(repackage_hidden(v) for v in h)
+
+
 def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
     """Trains the neural net
 
@@ -169,28 +179,32 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
                     for x in ['train', 'val']}
 
     print(dataset_size)
-    print("Parameters: {}".format(model.count_parameters()))
+    print("Parameters: {}\n".format(model.count_parameters()))
 
     while True:
         print('Epoch {}'.format(epoch))
-        print('=' * 10)
+        print('-' * 15)
 
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
 
+            model.hidden = model.init_hidden(params['type'])
+
             if phase == 'train':
-                model.train(True)  # Training Mode
+                model.train()  # Training Mode
             else:
-                model.train(False)  # Evaluate mode
+                model.eval()  # Evaluate mode
 
             running_loss = 0
-            running_corrects = 0
 
             # Iterate over the data
             for batch in dataloaders[phase]:
 
-                model.zero_grad()
-                model.hidden = model.init_hidden(params['type'])
+                # detach the hidden state from how it was previously produced
+                # otherwise the model would try backpropagating all the way to start
+                model.hidden = repackage_hidden(model.hidden)
+
+                model.zero_grad()  # center gradient
 
                 inputs = Variable(sequence_to_one_hot(batch, char_to_ix, params))
 
@@ -198,22 +212,21 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
                 _, preds = out.max(1)
 
                 # Get the targets (indexes where the one-hot vector is 1)
-                targets = inputs[:, 1:, :].topk(1)[1].view(-1)
-                loss = criterion(out, targets)
+                _, targets = inputs[:, 1:, :].topk(1)
+
+                loss = criterion(out, targets.view(-1))
 
                 if phase == 'train':
                     loss.backward()
+                    util.clip_grad_norm(model.parameters(), 0.25)
                     optimizer.step()
 
                 running_loss += loss.data[0]
-                running_corrects += torch.sum(preds == targets).data[0]
 
             # Compute mean epoch loss and accuracy
             epoch_loss = running_loss / len(dataloaders[phase])
-            epoch_acc = running_corrects / dataset_size[phase]
 
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                phase, epoch_loss, epoch_acc))
+            print('{} Loss: {:.4f}'.format(phase, epoch_loss))
 
             if phase == 'val':
 
@@ -221,7 +234,6 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
                 if epoch_loss < best_loss:
                     bad_epochs = 0
                     best_loss = epoch_loss
-                    best_acc = epoch_acc
                     torch.save(model.state_dict(), 'rnn.pkl')
 
                 else:
@@ -238,9 +250,7 @@ def train(dataloaders, char_to_ix, model, optimizer, criterion, params):
     print('\nTraining completed in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
 
-    print('Best Accuracy: {:.4f}\n\n'.format(best_acc))
-
-    # Load best wts
+    # Load best weights
     model.load_state_dict(torch.load('rnn.pkl'))
 
     return model

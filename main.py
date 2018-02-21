@@ -10,6 +10,9 @@ import data as data
 
 
 # TODO: add args
+# TODO: modify Txtloader to randomize sequences and get batches
+# TODO: refactor main maybe
+# TODO: add KeyboardInterrupt exception
 def main():
 
     # Use GPU if available
@@ -19,12 +22,12 @@ def main():
         dtype = torch.FloatTensor
 
     # path to the data file
-    path = 'data/LoveCraft.txt'
+    path = 'data/Lovecraft.txt'
 
     dataset = data.TxtLoader(path)
 
     # Network parameters
-    params = {'n_layers': 2, 'batch': 128, 'h_dim': 512,
+    params = {'n_layers': 2, 'batch': 100, 'h_dim': 512,
               'seq': 64, 'type': dtype,
               'alphabet_size': len(dataset.alphabet)}
 
@@ -32,7 +35,7 @@ def main():
 
     rnn = lstm.LSTM(params).type(params['type'])
 
-    optimizer = optim.Adam(rnn.parameters(), lr=0.01)
+    optimizer = optim.Adam(rnn.parameters(), lr=0.001)
 
     criterion = nn.CrossEntropyLoss()
 
